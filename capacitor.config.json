@@ -1,0 +1,9 @@
+{
+  "appId": "com.pessoal.taro",
+  "appName": "Tarô",
+  "webDir": "www",
+  "backgroundColor": "#1d1730",
+  "plugins": {
+    "CapacitorHttp": { "enabled": true }
+  }
+}

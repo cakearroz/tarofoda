@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1d1730"><title>Tarô</title>
+<style>
+:root{--bg:#1d1730;--sf:#2a2142;--ink:#efe6d2;--mut:#a79cc0;--ac:#6fc2ae;--gd:#d9b66a;--rv:#d7826f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,serif;padding:env(safe-area-inset-top) 14px 40px}
+h1{font-size:26px;margin:18px 0 4px}h2{font-size:18px;margin:22px 0 8px;color:var(--gd)}
+p.s{color:var(--mut);margin:0 0 10px;font-size:14px}
+input,textarea,select,button{font:inherit;color:var(--ink);background:var(--sf);border:1px solid #4a3d6e;border-radius:8px;padding:10px;width:100%}
+textarea{min-height:90px}button{background:var(--ac);color:#10241f;border:0;font-weight:bold;margin-top:8px}
+button.g{background:var(--sf);color:var(--ink);border:1px solid #4a3d6e;width:auto;margin:0;padding:6px 10px;font-weight:normal}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin:8px 0}.tabs button{width:auto;margin:0;padding:6px 12px;white-space:nowrap;background:var(--sf);color:var(--ink);border:1px solid #4a3d6e;font-weight:normal}
+.tabs button.on{background:var(--gd);color:#2a1f05}
+.list{max-height:240px;overflow-y:auto;border:1px solid #4a3d6e;border-radius:8px}
+.list div{padding:10px 12px;border-bottom:1px solid #3a2f58}.list div:active{background:var(--sf)}
+.c{background:var(--sf);border-left:4px solid var(--ac);border-radius:8px;padding:12px;margin:10px 0}
+.c.r{border-color:var(--rv)}.c .t{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.c b{font-size:18px}.tag{font-size:13px;color:var(--ac)}.c.r .tag{color:var(--rv)}
+.c p{margin:8px 0 0}.ai{white-space:pre-wrap;background:#241b3a;border:1px solid var(--gd);border-radius:8px;padding:14px}
+details{margin-top:24px}summary{color:var(--mut)}.err{color:var(--rv)}
+</style></head><body>
+<h1>Tarô de Waite</h1><p class="s">Escolha as cartas da tiragem, marque as invertidas e peça a leitura.</p>
+
+<h2>Cartas</h2>
+<input id="q" placeholder="Buscar carta…" oninput="draw()">
+<div class="tabs" id="tabs"></div>
+<div class="list" id="list"></div>
+
+<h2>Sua tiragem</h2><div id="sel"><p class="s">Nenhuma carta escolhida ainda.</p></div>
+
+<h2>Contexto</h2>
+<input id="pos" placeholder="Posições (ex.: passado, presente, futuro)">
+<textarea id="ctx" placeholder="Qual é a pergunta ou situação?" style="margin-top:8px"></textarea>
+<button onclick="ask()">Interpretar com IA</button>
+<div id="out" style="margin-top:14px"></div>
+
+<details><summary>Configurar IA (NVIDIA)</summary>
+<p class="s">A chave começa com nvapi- e fica salva só neste aparelho.</p>
+<input id="key" type="password" placeholder="Chave da API NVIDIA">
+<input id="model" style="margin-top:8px" placeholder="Modelo">
+<button onclick="saveCfg()">Salvar</button></details>
+
+<script>
+const M=`O Louco|Novo começo, espontaneidade, salto de fé|Imprudência, medo de arriscar, ingenuidade
+O Mago|Vontade, habilidade, manifestação|Manipulação, talento desperdiçado, bloqueio
+A Sacerdotisa|Intuição, mistério, saber interior|Segredos, intuição ignorada, superficialidade
+A Imperatriz|Fertilidade, abundância, cuidado|Dependência, sufocamento, bloqueio criativo
+O Imperador|Autoridade, estrutura, estabilidade|Rigidez, tirania, falta de controle
+O Hierofante|Tradição, ensino, valores|Rebeldia, dogma, quebra de convenções
+Os Enamorados|Amor, união, escolhas alinhadas|Desarmonia, escolha difícil, desequilíbrio
+O Carro|Determinação, vitória, direção|Falta de rumo, agressividade, derrota
+A Força|Coragem, paciência, domínio gentil|Dúvida, fraqueza, descontrole
+O Eremita|Introspecção, busca, orientação|Isolamento, solidão, recusa de conselho
+A Roda da Fortuna|Ciclos, destino, virada|Má sorte, resistência à mudança, atraso
+A Justiça|Verdade, equilíbrio, causa e efeito|Injustiça, desonestidade, fuga de responsabilidade
+O Enforcado|Pausa, entrega, nova perspectiva|Estagnação, sacrifício inútil, protelação
+A Morte|Fim de ciclo, transformação, renascimento|Resistência ao fim, apego, estagnação
+A Temperança|Equilíbrio, moderação, paciência|Excesso, desequilíbrio, pressa
+O Diabo|Apego, vícios, sombra, materialismo|Libertação, rompimento de correntes, consciência
+A Torre|Ruptura súbita, revelação, colapso|Evitar o desastre, medo da mudança, queda adiada
+A Estrela|Esperança, cura, renovação|Desânimo, falta de fé, desconexão
+A Lua|Ilusão, medo, inconsciente|Confusão se dissipando, verdade vindo à tona, ansiedade
+O Sol|Alegria, sucesso, vitalidade|Otimismo excessivo, alegria atrasada, ego
+O Julgamento|Chamado, renascimento, balanço de vida|Autocrítica, dúvida, ignorar o chamado
+O Mundo|Conclusão, realização, integração|Falta de fecho, atraso, ciclo incompleto`.split('\n').map(l=>l.split('|'));
+const R=['Ás','Dois','Três','Quatro','Cinco','Seis','Sete','Oito','Nove','Dez','Pajem','Cavaleiro','Rainha','Rei'];
+const S={
+'Copas':`Novo amor, intuição, emoção transbordante|Emoção bloqueada, vazio criativo
+União, parceria, atração mútua|Desencontro, ruptura, desequilíbrio
+Celebração, amizade, alegria em grupo|Excessos, isolamento, fofoca
+Apatia, contemplação, tédio|Nova perspectiva, despertar, aceitar oferta
+Perda, luto, arrependimento|Superar a perda, perdão, seguir em frente
+Nostalgia, infância, gentileza|Preso ao passado, imaturidade
+Fantasia, escolhas, ilusão|Clareza, decisão, ilusões desfeitas
+Deixar para trás, busca mais profunda|Medo de partir, estagnação, fuga
+Desejo realizado, satisfação|Insatisfação, vaidade, ganância
+Plenitude familiar, felicidade duradoura|Lar desarmônico, valores desalinhados
+Mensagem criativa, sensibilidade, convite|Imaturidade emocional, bloqueio criativo
+Romance, charme, idealismo|Promessas vazias, humor instável
+Compaixão, empatia, acolhimento|Dependência emocional, martírio
+Maturidade emocional, diplomacia, calma|Manipulação emocional, frieza, volatilidade`,
+'Paus':`Inspiração, faísca, potencial|Falta de energia, atraso, ideia travada
+Planejamento, decisão, visão de futuro|Medo do desconhecido, plano mal feito
+Expansão, previsão, horizontes|Obstáculos, atrasos, falta de visão
+Celebração, lar, harmonia|Instabilidade em casa, celebração adiada
+Competição, conflito, disputa|Evitar conflito, tensão interna
+Vitória, reconhecimento, orgulho|Queda, falta de reconhecimento, ego
+Defesa, perseverança, manter posição|Exaustão, ceder, sobrecarga
+Rapidez, movimento, notícias|Atrasos, pressa, frustração
+Resiliência, última resistência, cautela|Exaustão, paranoia, desistência
+Fardo, excesso de responsabilidade|Aliviar a carga, delegar, esgotamento
+Entusiasmo, exploração, novas ideias|Falta de direção, pressa, notícias ruins
+Aventura, energia, impulsividade|Imprudência, impaciência, dispersão
+Confiança, carisma, determinação|Egoísmo, ciúme, temperamento difícil
+Liderança, visão, empreendedorismo|Autoritarismo, impulsividade, expectativas altas`,
+'Espadas':`Clareza, verdade, avanço mental|Confusão, brutalidade, mente nublada
+Impasse, indecisão, negação|Indecisão, informação demais, tensão
+Dor no coração, tristeza, mágoa|Recuperação, perdão, dor reprimida
+Descanso, recuperação, pausa|Esgotamento, agitação, volta ao ritmo
+Conflito, derrota, tensão|Reconciliação, fim do conflito, ressentimento
+Transição, seguir adiante, calmaria|Estagnação, bagagem emocional, resistência
+Estratégia, furtividade, engano|Confissão, consciência, estratégia falha
+Restrição, sentir-se preso, impotência|Libertação, nova perspectiva, autoconfiança
+Ansiedade, pesadelo, preocupação|Esperança, pedir ajuda, ansiedade reprimida
+Fim doloroso, colapso, traição|Recuperação, resistência ao fim, renascer
+Curiosidade, vigilância, novas ideias|Fofoca, falar sem pensar, pressa
+Ação rápida, ambição, foco|Impulsividade, falta de direção, agressão
+Clareza, honestidade, independência|Frieza, amargura, crueldade
+Autoridade intelectual, verdade, justiça|Manipulação, abuso de poder, rigidez`,
+'Ouros':`Oportunidade, prosperidade, novo começo|Oportunidade perdida, escassez, planejamento ruim
+Equilíbrio, adaptação, malabarismo|Desorganização, sobrecarga, desequilíbrio
+Trabalho em equipe, maestria, colaboração|Falta de cooperação, trabalho mal feito
+Segurança, controle, economia|Ganância, apego, medo de perder
+Dificuldade, perda material, exclusão|Recuperação, ajuda chegando, superação
+Generosidade, caridade, partilha|Dívidas, generosidade interesseira
+Paciência, investimento, colheita a longo prazo|Impaciência, falta de retorno, esforço sem fruto
+Dedicação, aprimoramento, ofício|Perfeccionismo, trabalho repetitivo, falta de foco
+Abundância, independência, luxo|Dependência financeira, ostentação, insegurança
+Riqueza, legado, família estável|Perdas financeiras, conflitos familiares
+Estudo, oportunidade, ambição prática|Falta de progresso, procrastinação
+Dedicação, rotina, responsabilidade|Estagnação, tédio, perfeccionismo
+Praticidade, cuidado, abundância|Autocentrismo, ciúme, negligência
+Segurança financeira, liderança, estabilidade|Teimosia, materialismo, ganância`};
+const C=M.map(m=>({n:m[0],u:m[1],r:m[2],g:'Maiores'}));
+for(const [s,t] of Object.entries(S)){t.split('\n').forEach((l,i)=>{const [u,r]=l.split('|');
+C.push({n:`${R[i]} de ${s}`,u,r,g:s})})}
+let grp='Todas',pick=[];
+const G=['Todas','Maiores','Copas','Paus','Espadas','Ouros'];
+const $=i=>document.getElementById(i);
+function draw(){
+ $('tabs').innerHTML=G.map(g=>`<button class="${g==grp?'on':''}" onclick="grp='${g}';draw()">${g}</button>`).join('');
+ const q=$('q').value.toLowerCase();
+ $('list').innerHTML=C.map((c,i)=>[c,i]).filter(([c])=>(grp=='Todas'||c.g==grp)&&c.n.toLowerCase().includes(q))
+  .map(([c,i])=>`<div onclick="add(${i})">${c.n}</div>`).join('')||'<div>Nada encontrado.</div>';
+ $('sel').innerHTML=pick.length?pick.map((p,k)=>{const c=C[p.i],v=p.r;
+  return `<div class="c ${v?'r':''}"><div class="t"><b>${c.n}</b><span class="tag">${v?'Invertida':'Normal'}</span></div>
+  <p>${v?c.r:c.u}.</p><div style="display:flex;gap:8px;margin-top:10px">
+  <button class="g" onclick="flip(${k})">${v?'Marcar normal':'Marcar invertida'}</button>
+  <button class="g" onclick="pick.splice(${k},1);draw()">Remover</button></div></div>`}).join('')
+  :'<p class="s">Nenhuma carta escolhida ainda.</p>';
+}
+function add(i){if(pick.some(p=>p.i==i))return;pick.push({i,r:false});draw();window.scrollTo({top:$('sel').offsetTop-60,behavior:'smooth'})}
+function flip(k){pick[k].r=!pick[k].r;draw()}
+function saveCfg(){try{localStorage.setItem('nk',$('key').value.trim());localStorage.setItem('nm',$('model').value.trim())}catch(e){}alert('Salvo.')}
+try{$('key').value=localStorage.getItem('nk')||'';$('model').value=localStorage.getItem('nm')||'meta/llama-3.3-70b-instruct'}catch(e){$('model').value='meta/llama-3.3-70b-instruct'}
+async function ask(){
+ const o=$('out'),key=$('key').value.trim();
+ if(!pick.length){o.innerHTML='<p class="err">Escolha ao menos uma carta.</p>';return}
+ if(!key){o.innerHTML='<p class="err">Cadastre sua chave NVIDIA em “Configurar IA”.</p>';return}
+ const pos=$('pos').value.split(',').map(s=>s.trim());
+ const cartas=pick.map((p,k)=>`${k+1}. ${pos[k]?pos[k]+': ':''}${C[p.i].n} (${p.r?'invertida':'normal'}) — ${p.r?C[p.i].r:C[p.i].u}`).join('\n');
+ const msg=`Contexto da consulta: ${$('ctx').value||'(não informado)'}\n\nCartas tiradas:\n${cartas}\n\nInterprete a tiragem como um todo, ligando as cartas entre si e ao contexto. Termine com um resumo do que você entendeu e um conselho prático.`;
+ o.innerHTML='<p class="s">Lendo as cartas…</p>';
+ try{
+  const r=await fetch('https://integrate.api.nvidia.com/v1/chat/completions',{method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},
+   body:JSON.stringify({model:$('model').value.trim(),max_tokens:1200,temperature:0.7,messages:[
+    {role:'system',content:'Você é um leitor de tarô experiente do baralho Rider-Waite-Smith. Responda em português do Brasil, com clareza e empatia, tratando o tarô como ferramenta de reflexão, sem previsões absolutas.'},
+    {role:'user',content:msg}]})});
+  const d=await r.json();
+  if(!r.ok)throw new Error(d.detail||d.error?.message||r.status);
+  o.innerHTML='<div class="ai"></div>';o.firstChild.textContent=d.choices[0].message.content;
+ }catch(e){o.innerHTML='<p class="err"></p>';o.firstChild.textContent='Erro: '+e.message+(e.message=='Failed to fetch'?' (provável bloqueio de CORS do navegador ou sem internet).':'')}
+}
+draw();
+</script></body></html>
